@@ -196,14 +196,26 @@ clickButton(env, {}, ["data-finish"]);
 persisted = JSON.parse(storage.get("vanity-sprint-v1"));
 assert.equal(persisted.active, null);
 assert.equal(persisted.sessions.length, 1);
+assert.equal(persisted.sessions[0].week, 4);
 assert.match(env.confirmPrompt, /sets not logged/);
+assert.match(env.app.innerHTML, /Monday · Completed/);
+assert.match(env.app.innerHTML, /data-preview="monday" data-preview-week="4"/);
+
+clickButton(env, { week: "1" });
+assert.match(env.app.innerHTML, /Week 5 of 8/);
+assert.doesNotMatch(env.app.innerHTML, /Monday · Completed/);
+clickButton(env, { week: "-1" });
+assert.match(env.app.innerHTML, /Monday · Completed/);
 
 clickButton(env, { screen: "history" });
 assert.match(env.app.innerHTML, /History/);
 assert.match(env.app.innerHTML, /40 lb × 10/);
+assert.match(env.app.innerHTML, /Week 4 · 1 set/);
 
 clickButton(env, { screen: "home" });
 clickButton(env, { preview: "monday", previewWeek: "4" });
+assert.match(env.app.innerHTML, /Completed:<\/strong>[\s\S]*?Week 4/);
+assert.match(env.app.innerHTML, /Do Workout Again/);
 clickButton(env, { start: "monday", startWeek: "4" });
 assert.match(env.app.innerHTML, /data-row="mon-incline-press:1"[\s\S]*?value="40"/);
 
@@ -269,6 +281,7 @@ assert.equal(recoveredState.paused.length, 0, "empty paused workouts are cleaned
 assert.equal(recoveredState.sessions.length, 1);
 assert.equal(recoveredState.sessions[0].entries["mon-incline-press:1"].weight, "50");
 assert.match(recovered.app.innerHTML, /Recovered:<\/strong> 1 workout/);
+assert.match(recovered.app.innerHTML, /Monday · Completed/);
 assert.match(recovered.app.innerHTML, /History \(1\)/);
 
 console.log("Workout flow smoke tests: OK");

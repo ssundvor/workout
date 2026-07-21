@@ -3,7 +3,7 @@
   "short_name": "Vanity Sprint",
   "description": "A fast, offline workout tracker for the 8-week Vanity Muscle Sprint.",
   "id": "./",
-  "start_url": "./?pwa=6",
+  "start_url": "./?pwa=7",
   "scope": "./",
   "display": "standalone",
   "background_color": "#090b0d",

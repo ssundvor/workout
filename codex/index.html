@@ -124,6 +124,8 @@
     .day-button small { color: var(--muted); font-size: 13px; }
     .day-button .arrow { color: var(--accent); font-size: 25px; font-weight: 700; }
     .day-button.resume { border-color: rgba(198, 255, 61, .55); }
+    .day-button.completed { border-color: rgba(198, 255, 61, .7); background: linear-gradient(145deg, rgba(198, 255, 61, .11), var(--surface)); }
+    .day-button .completed-mark { font-size: 22px; font-weight: 900; }
 
     .home-footer { padding: 28px 0 4px; text-align: center; }
     .link-button { padding: 0 12px; background: transparent; color: var(--muted); text-decoration: underline; text-underline-offset: 4px; }
@@ -307,7 +309,7 @@
       "use strict";
 
       const STORAGE_KEY = "vanity-sprint-v1";
-      const SW_RELEASE = "2026-07-21-6";
+      const SW_RELEASE = "2026-07-21-7";
 
       const PROGRAM = {
         monday: {
@@ -608,6 +610,12 @@
         return new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" }).format(date);
       }
 
+      function completedSessionFor(workoutId, week) {
+        return state.sessions
+          .filter(session => session.workoutId === workoutId && Number(session.week) === Number(week))
+          .sort((a, b) => (b.finishedAt || b.createdAt).localeCompare(a.finishedAt || a.createdAt))[0] || null;
+      }
+
       function render() {
         clearInterval(timerTick);
         const app = document.getElementById("app");
@@ -635,11 +643,15 @@
           <section class="day-list" aria-label="Workouts">
             ${Object.entries(PROGRAM).map(([id, workout]) => {
               const saved = inProgress.find(session => session.workoutId === id && session.week === state.week);
+              const completed = completedSessionFor(id, state.week);
               const savedSets = loggedCount(saved);
               const action = saved ? `data-start="${id}" data-start-week="${state.week}"` : `data-preview="${id}" data-preview-week="${state.week}"`;
-              return `<button type="button" class="day-button ${saved ? "resume" : ""}" ${action}>
-                <span><strong>${workout.name}${saved ? " · Resume" : ""}</strong><small>${saved ? `${savedSets} set${savedSets === 1 ? "" : "s"} saved · ` : ""}${workout.focus} · ${workout.duration}</small></span>
-                <span class="arrow" aria-hidden="true">›</span>
+              const detail = saved
+                ? `${savedSets} set${savedSets === 1 ? "" : "s"} saved · ${completed ? "Completed earlier · " : ""}`
+                : completed ? `${loggedCount(completed)} set${loggedCount(completed) === 1 ? "" : "s"} · ${formatDate(completed.date)} · ` : "";
+              return `<button type="button" class="day-button ${saved ? "resume" : ""} ${completed ? "completed" : ""}" ${action}>
+                <span><strong>${workout.name}${saved ? " · Resume" : completed ? " · Completed" : ""}</strong><small>${detail}${workout.focus} · ${workout.duration}</small></span>
+                <span class="arrow ${completed && !saved ? "completed-mark" : ""}" aria-hidden="true">${completed && !saved ? "✓" : "›"}</span>
               </button>`;
             }).join("")}
           </section>
@@ -665,6 +677,7 @@
         const workout = PROGRAM[preview.workoutId];
         const week = preview.week;
         const blocks = buildBlocks(workout, week);
+        const completed = completedSessionFor(preview.workoutId, week);
         app.innerHTML = `
           <header class="workout-top">
             <div class="top-row">
@@ -672,6 +685,7 @@
               <div style="flex:1"><p class="eyebrow" style="margin-bottom:3px">Week ${week} · Preview</p><h2 style="margin:0">${workout.name}: ${workout.focus}</h2></div>
             </div>
           </header>
+          ${completed ? `<div class="deload"><strong>Completed:</strong> ${formatDate(completed.date)} · Week ${week} · ${loggedCount(completed)} set${loggedCount(completed) === 1 ? "" : "s"} logged.</div>` : ""}
           ${week === 8 ? `<div class="deload"><strong>Deload:</strong> 2 sets per exercise, ~60% weight, stop 3–4 reps from failure.</div>` : ""}
           <section class="exercise-list">
             ${blocks.map(block => `<article class="exercise-card">
@@ -683,7 +697,7 @@
               </div>`).join("")}
             </article>`).join("")}
           </section>
-          <button type="button" class="finish-button" data-start="${preview.workoutId}" data-start-week="${week}">Start Workout</button>
+          <button type="button" class="finish-button" data-start="${preview.workoutId}" data-start-week="${week}">${completed ? "Do Workout Again" : "Start Workout"}</button>
         `;
       }
 
