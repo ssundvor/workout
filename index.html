@@ -9,6 +9,8 @@
   <meta name="description" content="A fast, offline workout tracker for the 8-week Vanity Muscle Sprint.">
   <title>Vanity Sprint</title>
   <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
   <style>
     :root {
       color-scheme: dark;
@@ -374,7 +376,7 @@
       };
       const LEGACY_WORKOUT_IDS = { mon: "monday", tue: "tuesday", thu: "thursday", bonus: "bonus" };
 
-      const defaults = { week: 1, active: null, sessions: [] };
+      const defaults = { week: 1, active: null, paused: [], sessions: [] };
       let state = loadState();
       let screen = state.active ? "workout" : "home";
       let timerTick = null;
@@ -398,10 +400,16 @@
       }
 
       function normalizeState(saved) {
+        const active = saved?.active || null;
+        const completed = Array.isArray(saved?.sessions) ? saved.sessions.filter(session => session.finishedAt) : [];
+        const unfinished = Array.isArray(saved?.sessions) ? saved.sessions.filter(session => !session.finishedAt) : [];
+        const pausedById = new Map((Array.isArray(saved?.paused) ? [...saved.paused, ...unfinished] : unfinished).map(session => [session.id, session]));
+        if (active) pausedById.delete(active.id);
         return {
           week: clamp(Number(saved?.week) || 1, 1, 8),
-          active: saved?.active || null,
-          sessions: Array.isArray(saved?.sessions) ? saved.sessions : []
+          active,
+          paused: [...pausedById.values()],
+          sessions: completed
         };
       }
 
@@ -459,7 +467,8 @@
         return {
           week: clamp(Number(legacy.week) || 1, 1, 8),
           active,
-          sessions: migratedSessions.filter(session => session !== active)
+          paused: unfinished.slice(1),
+          sessions: migratedSessions.filter(session => session.finishedAt)
         };
       }
 
@@ -571,7 +580,7 @@
 
       function renderHome(app) {
         screen = "home";
-        const activeId = state.active?.workoutId;
+        const inProgress = [state.active, ...(state.paused || [])].filter(Boolean);
         app.innerHTML = `
           <header class="home-header">
             <p class="eyebrow">8-week program</p>
@@ -585,15 +594,15 @@
           </section>
           <section class="day-list" aria-label="Workouts">
             ${Object.entries(PROGRAM).map(([id, workout]) => {
-              const isActive = activeId === id;
-              const blocked = activeId && !isActive;
-              return `<button type="button" class="day-button ${isActive ? "resume" : ""}" data-start="${id}" ${blocked ? "disabled" : ""}>
-                <span><strong>${workout.name}${isActive ? " · Resume" : ""}</strong><small>${workout.focus} · ${workout.duration}</small></span>
+              const saved = inProgress.find(session => session.workoutId === id && session.week === state.week);
+              const savedSets = loggedCount(saved);
+              return `<button type="button" class="day-button ${saved ? "resume" : ""}" data-start="${id}">
+                <span><strong>${workout.name}${saved ? " · Resume" : ""}</strong><small>${saved ? `${savedSets} set${savedSets === 1 ? "" : "s"} saved · ` : ""}${workout.focus} · ${workout.duration}</small></span>
                 <span class="arrow" aria-hidden="true">›</span>
               </button>`;
             }).join("")}
           </section>
-          ${activeId ? `<p class="small muted" style="text-align:center;margin:15px 20px 0">Finish ${PROGRAM[activeId].name} before starting another workout.</p>` : ""}
+          ${inProgress.length ? `<p class="small muted" style="text-align:center;margin:15px 20px 0">${inProgress.length} workout${inProgress.length === 1 ? "" : "s"} in progress across all weeks.</p>` : ""}
           <footer class="home-footer"><button type="button" class="link-button" data-screen="history">History (${state.sessions.length})</button></footer>
         `;
       }
@@ -605,23 +614,31 @@
       }
 
       function startWorkout(workoutId) {
-        if (state.active?.workoutId === workoutId) {
+        if (state.active?.workoutId === workoutId && state.active.week === state.week) {
           screen = "workout";
           render();
           return;
         }
-        if (state.active) return;
-        state.active = {
-          id: makeId(),
-          date: today(),
-          workoutId,
-          week: state.week,
-          createdAt: new Date().toISOString(),
-          startedAt: null,
-          entries: {},
-          drafts: {},
-          timer: null
-        };
+        state.paused ||= [];
+        if (state.active) {
+          state.paused = state.paused.filter(session => session.id !== state.active.id);
+          state.paused.push(state.active);
+        }
+        const savedIndex = state.paused.findIndex(session => session.workoutId === workoutId && session.week === state.week);
+        if (savedIndex >= 0) state.active = state.paused.splice(savedIndex, 1)[0];
+        else {
+          state.active = {
+            id: makeId(),
+            date: today(),
+            workoutId,
+            week: state.week,
+            createdAt: new Date().toISOString(),
+            startedAt: null,
+            entries: {},
+            drafts: {},
+            timer: null
+          };
+        }
         saveState();
         screen = "workout";
         render();

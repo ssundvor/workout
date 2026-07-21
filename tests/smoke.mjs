@@ -105,6 +105,24 @@ assert.equal(persisted.active.entries["mon-incline-press:1"].reps, "10");
 assert.equal(persisted.active.timer.duration, 150);
 assert.match(persisted.active.timer.nextLabel, /set 2/);
 
+clickButton(env, { screen: "home" });
+assert.doesNotMatch(env.app.innerHTML, /data-start="tuesday" disabled/);
+clickButton(env, { week: "1" });
+clickButton(env, { start: "thursday" });
+persisted = JSON.parse(storage.get("vanity-sprint-v1"));
+assert.equal(persisted.active.workoutId, "thursday");
+assert.equal(persisted.active.week, 5);
+assert.equal(persisted.paused[0].workoutId, "monday");
+assert.equal(persisted.paused[0].week, 4);
+
+clickButton(env, { screen: "home" });
+clickButton(env, { week: "-1" });
+clickButton(env, { start: "monday" });
+persisted = JSON.parse(storage.get("vanity-sprint-v1"));
+assert.equal(persisted.active.workoutId, "monday");
+assert.equal(persisted.active.entries["mon-incline-press:1"].weight, "40");
+assert.equal(persisted.paused[0].workoutId, "thursday");
+
 env = boot(storage);
 assert.match(env.app.innerHTML, /Monday: Chest \+ Arms \+ Delts/);
 assert.match(env.app.innerHTML, /data-row="mon-incline-press:1"[\s\S]*?value="40"/);
