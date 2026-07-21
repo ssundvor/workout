@@ -80,6 +80,7 @@
   .h-meta { color: var(--dim); font-size: 13px; }
   .h-detail { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 14px; line-height: 1.7; }
   .h-detail .hx { color: var(--dim); }
+  .h-del { display: block; color: #f87171; font-size: 14px; padding: 12px 0 2px; }
   .empty { color: var(--dim); text-align: center; padding: 40px 0; font-size: 15px; }
 </style>
 </head>
@@ -340,6 +341,7 @@ function renderHistory() {
           .sort((a, b) => a.n - b.n);
         if (entries.length) html += '<div><span class="hx">' + esc(ex.name) + ':</span> ' + esc(fmtEntries(entries)) + '</div>';
       }
+      html += '<button class="h-del" data-act="delsession" data-s="' + s.id + '">Delete session</button>';
       html += '</div>';
     }
     html += '</div>';
@@ -349,6 +351,9 @@ function renderHistory() {
 
 /* ================= Actions ================= */
 app.addEventListener('click', e => {
+  /* Tapping anywhere on a completed set un-logs it for editing */
+  const doneRow = e.target.closest('.set-row.done');
+  if (doneRow && !e.target.closest('[data-act]')) { toggleSet(doneRow.dataset.key); return; }
   const t = e.target.closest('[data-act]');
   if (!t) return;
   const act = t.dataset.act;
@@ -368,6 +373,11 @@ app.addEventListener('click', e => {
   } else if (act === 'expand') {
     openHistory[t.dataset.s] = !openHistory[t.dataset.s];
     screen.scrollY = window.scrollY; render();
+  } else if (act === 'delsession') {
+    if (confirm('Delete this session and its logged sets?')) {
+      state.sessions = state.sessions.filter(s => s.id !== t.dataset.s);
+      save(); render();
+    }
   } else if (act === 'log') {
     toggleSet(t.dataset.key);
   } else if (act === 'finish') {
@@ -416,7 +426,9 @@ function toggleSet(key) {
   const ex = getExercise(exId);
 
   if (session.sets[key]) {
-    /* Un-log: make the row editable again */
+    /* Un-log: make the row editable again, keeping the logged values */
+    const old = session.sets[key];
+    session.drafts[key] = { w: old.w == null ? '' : old.w, r: old.r == null ? '' : old.r };
     delete session.sets[key];
     save();
     screen.scrollY = window.scrollY; render();
