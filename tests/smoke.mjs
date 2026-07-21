@@ -108,6 +108,32 @@ assert.match(persisted.active.timer.nextLabel, /set 2/);
 env = boot(storage);
 assert.match(env.app.innerHTML, /Monday: Chest \+ Arms \+ Delts/);
 assert.match(env.app.innerHTML, /data-row="mon-incline-press:1"[\s\S]*?value="40"/);
+assert.match(env.app.innerHTML, /data-log="mon-incline-press:1"[\s\S]*?>Edit<\/button>/);
+
+clickButton(env, { log: "mon-incline-press:1" });
+persisted = JSON.parse(storage.get("vanity-sprint-v1"));
+assert.equal(persisted.active.entries["mon-incline-press:1"], undefined);
+assert.deepEqual(persisted.active.drafts["mon-incline-press:1"], { weight: "40", reps: "10" });
+assert.match(env.app.innerHTML, /data-row="mon-incline-press:1"[\s\S]*?value="40"/);
+
+weightInput.value = "42.5";
+repsInput.value = "8";
+env.click(logButton);
+persisted = JSON.parse(storage.get("vanity-sprint-v1"));
+assert.equal(persisted.active.entries["mon-incline-press:1"].weight, "42.5");
+assert.equal(persisted.active.entries["mon-incline-press:1"].reps, "8");
+
+clickButton(env, {}, ["data-restart"]);
+persisted = JSON.parse(storage.get("vanity-sprint-v1"));
+assert.deepEqual(persisted.active.entries, {});
+assert.deepEqual(persisted.active.drafts, {});
+assert.equal(persisted.active.startedAt, null);
+assert.equal(persisted.active.timer, null);
+assert.match(env.confirmPrompt, /Start Monday over/);
+
+weightInput.value = "40";
+repsInput.value = "10";
+env.click(logButton);
 
 clickButton(env, {}, ["data-finish"]);
 persisted = JSON.parse(storage.get("vanity-sprint-v1"));

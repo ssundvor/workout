@@ -225,9 +225,10 @@
     .field span { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: #66727a; font-size: 10px; pointer-events: none; }
 
     .log-button { width: 52px; height: 48px; background: var(--accent); color: var(--accent-ink); font-size: 21px; font-weight: 900; }
-    .done .log-button { background: #2b3622; color: var(--accent); }
+    .done .log-button { background: #2b3622; color: var(--accent); font-size: 12px; }
 
     .finish-button { width: 100%; margin-top: 22px; background: var(--text); color: #0a0c0d; font-size: 16px; font-weight: 850; }
+    .restart-button { width: 100%; margin-top: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 14px; font-weight: 750; }
 
     .timer-bar {
       position: fixed;
@@ -648,6 +649,7 @@
             ${blocks.map((block, blockIndex) => renderBlock(block, blockIndex, session)).join("")}
           </section>
           <button type="button" class="finish-button" data-finish>Finish Workout</button>
+          <button type="button" class="restart-button" data-restart>Start workout over</button>
           ${session.timer ? renderTimer(session.timer) : ""}
         `;
         startClock();
@@ -681,7 +683,7 @@
           <span class="set-label">${esc(label)}</span>
           <label class="field"><span>lb</span><input aria-label="${esc(exercise.name)} set ${setNumber} weight in pounds" data-input="weight" data-key="${esc(key)}" inputmode="decimal" type="number" min="0" step="any" value="${esc(draft.weight)}" ${entry ? "disabled" : ""}></label>
           <label class="field"><span>reps</span><input aria-label="${esc(exercise.name)} set ${setNumber} reps" data-input="reps" data-key="${esc(key)}" inputmode="numeric" type="number" min="1" step="1" value="${esc(draft.reps)}" ${entry ? "disabled" : ""}></label>
-          <button type="button" class="log-button" data-log="${esc(key)}" aria-label="${entry ? "Logged" : `Log ${esc(exercise.name)} set ${setNumber}`}" ${entry ? "disabled" : ""}>✓</button>
+          <button type="button" class="log-button" data-log="${esc(key)}" aria-label="${entry ? `Edit ${esc(exercise.name)} set ${setNumber}` : `Log ${esc(exercise.name)} set ${setNumber}`}">${entry ? "Edit" : "✓"}</button>
         </div>`;
       }
 
@@ -728,6 +730,20 @@
         state.active.drafts[key] ||= { weight: "", reps: "" };
         state.active.drafts[key][field] = value;
         saveState();
+      }
+
+      function toggleSet(key, button) {
+        const entry = state.active?.entries?.[key];
+        if (!entry) {
+          logSet(key, button);
+          return;
+        }
+        state.active.drafts[key] = { weight: entry.weight, reps: entry.reps };
+        delete state.active.entries[key];
+        saveState();
+        render();
+        setTimeout(() => document.querySelector(`[data-key="${CSS.escape(key)}"][data-input="weight"]`)?.focus(), 0);
+        showToast("Set reopened for editing");
       }
 
       function logSet(key, button) {
@@ -777,6 +793,27 @@
         screen = "home";
         render();
         showToast("Workout saved");
+      }
+
+      function restartWorkout() {
+        const session = state.active;
+        if (!session) return;
+        const logged = loggedCount(session);
+        const hasDrafts = Object.values(session.drafts || {}).some(draft => draft.weight !== "" || draft.reps !== "");
+        if (!logged && !hasDrafts) {
+          showToast("Workout is already empty");
+          return;
+        }
+        const workoutName = PROGRAM[session.workoutId].name;
+        if (!window.confirm(`Start ${workoutName} over? This clears ${logged} logged set${logged === 1 ? "" : "s"}.`)) return;
+        session.startedAt = null;
+        session.entries = {};
+        session.drafts = {};
+        session.timer = null;
+        timerNotified = false;
+        saveState();
+        render();
+        showToast("Workout reset");
       }
 
       function renderHistory(app) {
@@ -829,8 +866,9 @@
           render();
         } else if (target.dataset.start) startWorkout(target.dataset.start);
         else if (target.dataset.screen) { screen = target.dataset.screen; render(); }
-        else if (target.dataset.log) logSet(target.dataset.log, target);
+        else if (target.dataset.log) toggleSet(target.dataset.log, target);
         else if (target.hasAttribute("data-finish")) finishWorkout();
+        else if (target.hasAttribute("data-restart")) restartWorkout();
         else if (target.hasAttribute("data-add-time") && state.active?.timer) {
           state.active.timer.endAt = Math.max(Date.now(), state.active.timer.endAt) + 30000;
           timerNotified = false;
