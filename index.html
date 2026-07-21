@@ -360,6 +360,19 @@
         }
       };
 
+      const LEGACY_EXERCISE_IDS = {
+        mon1: "mon-incline-press", mon2a: "mon-incline-curl", mon2b: "mon-overhead-extension",
+        mon3: "mon-weighted-dip", mon4a: "mon-lateral-raise", mon4b: "mon-calf-raise",
+        tue1: "tue-hack-squat", tue2: "tue-rdl", tue3: "tue-leg-press-calf",
+        tue4: "tue-seated-calf", tue5a: "tue-cable-crunch", tue5b: "tue-leg-raise",
+        thu1a: "thu-db-row", thu1b: "thu-db-press", thu2: "thu-pullup",
+        thu3a: "thu-cable-curl", thu3b: "thu-cable-extension", thu4a: "thu-cable-lateral",
+        thu4b: "thu-rear-delt", thu5: "thu-ab-wheel", bon1a: "bonus-fly",
+        bon1b: "bonus-curl", bon2a: "bonus-extension", bon2b: "bonus-lateral",
+        bon3: "bonus-calf", bon4: "bonus-crunch"
+      };
+      const LEGACY_WORKOUT_IDS = { mon: "monday", tue: "tuesday", thu: "thursday", bonus: "bonus" };
+
       const defaults = { week: 1, active: null, sessions: [] };
       let state = loadState();
       let screen = state.active ? "workout" : "home";
@@ -370,14 +383,83 @@
       function loadState() {
         try {
           const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-          return {
-            week: clamp(Number(saved?.week) || 1, 1, 8),
-            active: saved?.active || null,
-            sessions: Array.isArray(saved?.sessions) ? saved.sessions : []
-          };
+          if (saved) return normalizeState(saved);
+          const legacy = JSON.parse(localStorage.getItem("sprint-tracker-v1"));
+          if (legacy?.sessions) {
+            const migrated = migrateLegacyState(legacy);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+            return migrated;
+          }
         } catch (_) {
-          return structuredClone(defaults);
+          // Fall through to a clean state if saved data is malformed.
         }
+        return structuredClone(defaults);
+      }
+
+      function normalizeState(saved) {
+        return {
+          week: clamp(Number(saved?.week) || 1, 1, 8),
+          active: saved?.active || null,
+          sessions: Array.isArray(saved?.sessions) ? saved.sessions : []
+        };
+      }
+
+      function migrateLegacyState(legacy) {
+        const migratedSessions = (legacy.sessions || []).map(session => {
+          const entries = {};
+          const drafts = {};
+          Object.entries(session.sets || {}).forEach(([key, value]) => {
+            const [oldExerciseId, setNumberRaw] = key.split("|");
+            const exerciseId = LEGACY_EXERCISE_IDS[oldExerciseId];
+            const setNumber = Number(setNumberRaw);
+            if (!exerciseId || !setNumber) return;
+            entries[entryKey(exerciseId, setNumber)] = {
+              exerciseId,
+              setNumber,
+              weight: value.w == null ? "" : String(value.w),
+              reps: value.r == null ? "" : String(value.r),
+              timestamp: new Date(value.ts || session.createdAt || Date.now()).toISOString()
+            };
+          });
+          Object.entries(session.drafts || {}).forEach(([key, value]) => {
+            const [oldExerciseId, setNumberRaw] = key.split("|");
+            const exerciseId = LEGACY_EXERCISE_IDS[oldExerciseId];
+            const setNumber = Number(setNumberRaw);
+            if (!exerciseId || !setNumber) return;
+            drafts[entryKey(exerciseId, setNumber)] = {
+              weight: value.w == null ? "" : String(value.w),
+              reps: value.r == null ? "" : String(value.r)
+            };
+          });
+          return {
+            id: session.id || makeId(),
+            date: session.date || today(),
+            workoutId: LEGACY_WORKOUT_IDS[session.workoutId] || session.workoutId,
+            week: clamp(Number(session.week) || 1, 1, 8),
+            createdAt: new Date(session.createdAt || Date.now()).toISOString(),
+            startedAt: session.startedAt ? new Date(session.startedAt).toISOString() : null,
+            finishedAt: session.finishedAt ? new Date(session.finishedAt).toISOString() : null,
+            entries,
+            drafts,
+            timer: null
+          };
+        });
+        const unfinished = migratedSessions
+          .filter(session => !session.finishedAt)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        const active = unfinished[0] || null;
+        if (active && legacy.timer) {
+          active.timer = {
+            endAt: Number(legacy.timer.endsAt) || Date.now(),
+            duration: Math.max(0, Math.ceil(((Number(legacy.timer.endsAt) || Date.now()) - Date.now()) / 1000)),
+            nextLabel: String(legacy.timer.next || "Keep going").replace(/^Next:\s*/, "")
+          };
+        }
+        return {
+          week: clamp(Number(legacy.week) || 1, 1, 8),
+          active,
+          sessions: migratedSessions.filter(session => session !== active)
+        };
       }
 
       function saveState() {

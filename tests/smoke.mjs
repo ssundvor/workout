@@ -130,4 +130,26 @@ assert.match(deload.app.innerHTML, /Deload:/);
 assert.equal((deload.app.innerHTML.match(/data-row="tue-leg-press-calf:/g) || []).length, 2);
 assert.doesNotMatch(deload.app.innerHTML, /data-row="tue-hack-squat:3"/);
 
+const legacyStorage = new Map([["sprint-tracker-v1", JSON.stringify({
+  week: 3,
+  timer: { endsAt: Date.now() + 60000, next: "Next: Incline DB curl · set 1" },
+  sessions: [{
+    id: "legacy-session",
+    date: "2026-07-20",
+    workoutId: "mon",
+    week: 3,
+    createdAt: Date.now() - 5000,
+    startedAt: Date.now() - 4000,
+    finishedAt: null,
+    sets: { "mon1|1": { w: 55, r: 9, ts: Date.now() - 3000 } },
+    drafts: { "mon1|2": { w: "55", r: "8" } }
+  }]
+})]]);
+const migrated = boot(legacyStorage);
+const migratedState = JSON.parse(legacyStorage.get("vanity-sprint-v1"));
+assert.equal(migratedState.active.workoutId, "monday");
+assert.equal(migratedState.active.entries["mon-incline-press:1"].weight, "55");
+assert.equal(migratedState.active.drafts["mon-incline-press:2"].reps, "8");
+assert.match(migrated.app.innerHTML, /Monday: Chest \+ Arms \+ Delts/);
+
 console.log("Workout flow smoke tests: OK");
