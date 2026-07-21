@@ -71,6 +71,16 @@ function clickButton(env, dataset = {}, attributes = []) {
   env.click(target);
 }
 
+const emptyStorage = new Map();
+const empty = boot(emptyStorage);
+clickButton(empty, { preview: "monday", previewWeek: "1" });
+clickButton(empty, { start: "monday", startWeek: "1" });
+clickButton(empty, {}, ["data-pause"]);
+const emptyState = JSON.parse(emptyStorage.get("vanity-sprint-v1"));
+assert.equal(emptyState.active, null);
+assert.deepEqual(emptyState.paused, []);
+assert.doesNotMatch(empty.app.innerHTML, /Resume/);
+
 const storage = new Map();
 let env = boot(storage);
 assert.match(env.app.innerHTML, /Vanity Sprint/);
@@ -135,6 +145,15 @@ assert.equal(persisted.active.week, 5);
 assert.equal(persisted.paused[0].workoutId, "monday");
 assert.equal(persisted.paused[0].week, 4);
 
+const thursdayWeight = { value: "45", classList: classList(), focus() {} };
+const thursdayReps = { value: "10", classList: classList(), focus() {} };
+const thursdayRow = { querySelector: selector => selector.includes("weight") ? thursdayWeight : thursdayReps };
+const thursdayLog = {
+  dataset: { log: "thu-db-row:1" },
+  closest(selector) { return selector === "button" ? thursdayLog : thursdayRow; },
+  hasAttribute() { return false; }
+};
+env.click(thursdayLog);
 clickButton(env, {}, ["data-pause"]);
 clickButton(env, { week: "-1" });
 clickButton(env, { start: "monday", startWeek: "4" });
@@ -220,5 +239,36 @@ assert.equal(migratedState.active.workoutId, "monday");
 assert.equal(migratedState.active.entries["mon-incline-press:1"].weight, "55");
 assert.equal(migratedState.active.drafts["mon-incline-press:2"].reps, "8");
 assert.match(migrated.app.innerHTML, /Monday: Chest \+ Arms \+ Delts/);
+
+const recoveryStorage = new Map([
+  ["vanity-sprint-v1", JSON.stringify({
+    week: 1,
+    active: null,
+    paused: [{ id: "empty-old", workoutId: "tuesday", week: 1, entries: {}, drafts: {} }],
+    sessions: []
+  })],
+  ["sprint-tracker-v1", JSON.stringify({
+    week: 1,
+    timer: null,
+    sessions: [{
+      id: "recovered-yesterday",
+      date: "2026-07-20",
+      workoutId: "mon",
+      week: 1,
+      createdAt: new Date("2026-07-20T18:00:00Z").getTime(),
+      startedAt: new Date("2026-07-20T18:01:00Z").getTime(),
+      finishedAt: new Date("2026-07-20T18:45:00Z").getTime(),
+      sets: { "mon1|1": { w: 50, r: 10, ts: new Date("2026-07-20T18:05:00Z").getTime() } },
+      drafts: {}
+    }]
+  })]
+]);
+const recovered = boot(recoveryStorage);
+const recoveredState = JSON.parse(recoveryStorage.get("vanity-sprint-v1"));
+assert.equal(recoveredState.paused.length, 0, "empty paused workouts are cleaned up on load");
+assert.equal(recoveredState.sessions.length, 1);
+assert.equal(recoveredState.sessions[0].entries["mon-incline-press:1"].weight, "50");
+assert.match(recovered.app.innerHTML, /Recovered:<\/strong> 1 workout/);
+assert.match(recovered.app.innerHTML, /History \(1\)/);
 
 console.log("Workout flow smoke tests: OK");

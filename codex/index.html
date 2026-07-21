@@ -307,7 +307,7 @@
       "use strict";
 
       const STORAGE_KEY = "vanity-sprint-v1";
-      const SW_RELEASE = "2026-07-21-5";
+      const SW_RELEASE = "2026-07-21-6";
 
       const PROGRAM = {
         monday: {
@@ -380,6 +380,7 @@
       const LEGACY_WORKOUT_IDS = { mon: "monday", tue: "tuesday", thu: "thursday", bonus: "bonus" };
 
       const defaults = { week: 1, active: null, paused: [], sessions: [] };
+      let recoveredLegacyCount = 0;
       let state = loadState();
       let screen = state.active ? "workout" : "home";
       let preview = null;
@@ -390,8 +391,13 @@
       function loadState() {
         try {
           const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-          if (saved) return normalizeState(saved);
           const legacy = JSON.parse(localStorage.getItem("sprint-tracker-v1"));
+          if (saved) {
+            const normalized = normalizeState(saved);
+            const merged = legacy?.sessions ? mergeLegacyState(normalized, migrateLegacyState(legacy)) : normalized;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+            return merged;
+          }
           if (legacy?.sessions) {
             const migrated = migrateLegacyState(legacy);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
@@ -412,9 +418,38 @@
         return {
           week: clamp(Number(saved?.week) || 1, 1, 8),
           active,
-          paused: [...pausedById.values()],
+          paused: [...pausedById.values()].filter(hasSessionProgress),
           sessions: completed
         };
+      }
+
+      function hasSessionProgress(session) {
+        if (Object.keys(session?.entries || {}).length) return true;
+        return Object.values(session?.drafts || {}).some(draft => draft.weight !== "" || draft.reps !== "");
+      }
+
+      function mergeLegacyState(current, legacy) {
+        const knownIds = new Set([
+          current.active?.id,
+          ...(current.paused || []).map(session => session.id),
+          ...current.sessions.map(session => session.id)
+        ].filter(Boolean));
+        const sessions = [...current.sessions];
+        const paused = [...(current.paused || [])];
+
+        legacy.sessions.forEach(session => {
+          if (knownIds.has(session.id)) return;
+          knownIds.add(session.id);
+          sessions.push(session);
+          recoveredLegacyCount += 1;
+        });
+        [legacy.active, ...(legacy.paused || [])].filter(hasSessionProgress).forEach(session => {
+          if (knownIds.has(session.id)) return;
+          knownIds.add(session.id);
+          paused.push(session);
+          recoveredLegacyCount += 1;
+        });
+        return { ...current, paused, sessions };
       }
 
       function migrateLegacyState(legacy) {
@@ -608,6 +643,7 @@
               </button>`;
             }).join("")}
           </section>
+          ${recoveredLegacyCount ? `<div class="deload" style="margin-top:16px"><strong>Recovered:</strong> ${recoveredLegacyCount} workout${recoveredLegacyCount === 1 ? "" : "s"} from older app data.</div>` : ""}
           ${inProgress.length ? `<p class="small muted" style="text-align:center;margin:15px 20px 0">${inProgress.length} workout${inProgress.length === 1 ? "" : "s"} in progress across all weeks.</p>` : ""}
           <footer class="home-footer"><button type="button" class="link-button" data-screen="history">History (${state.sessions.length})</button></footer>
         `;
@@ -857,14 +893,15 @@
       function pauseWorkout() {
         const session = state.active;
         if (!session) return;
+        const keep = hasSessionProgress(session);
         state.paused ||= [];
         state.paused = state.paused.filter(item => item.id !== session.id);
-        state.paused.push(session);
+        if (keep) state.paused.push(session);
         state.active = null;
         saveState();
         screen = "home";
         render();
-        showToast("Workout paused");
+        showToast(keep ? "Workout paused" : "Workout closed");
       }
 
       function restartWorkout() {
