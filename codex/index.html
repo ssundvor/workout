@@ -179,6 +179,7 @@
     .exercise-head { padding: 13px 15px 12px; }
     .exercise-head + .exercise-head { padding-top: 2px; }
     .exercise-meta { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.35; }
+    .preview-count { margin: 0 0 4px; color: var(--text); font-size: 15px; font-weight: 800; }
     .last-button { min-height: 38px; margin: 5px 0 0 -10px; padding: 5px 10px; background: transparent; color: #d7dde1; text-align: left; font-size: 13px; }
     .last-button span { color: var(--accent); font-weight: 750; }
 
@@ -230,6 +231,7 @@
     .done .log-button { background: #2b3622; color: var(--accent); font-size: 12px; }
 
     .finish-button { width: 100%; margin-top: 22px; background: var(--text); color: #0a0c0d; font-size: 16px; font-weight: 850; }
+    .pause-button { width: 100%; margin-top: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 15px; font-weight: 800; }
     .restart-button { width: 100%; margin-top: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 14px; font-weight: 750; }
 
     .timer-bar {
@@ -305,7 +307,7 @@
       "use strict";
 
       const STORAGE_KEY = "vanity-sprint-v1";
-      const SW_RELEASE = "2026-07-20-4";
+      const SW_RELEASE = "2026-07-21-5";
 
       const PROGRAM = {
         monday: {
@@ -380,6 +382,7 @@
       const defaults = { week: 1, active: null, paused: [], sessions: [] };
       let state = loadState();
       let screen = state.active ? "workout" : "home";
+      let preview = null;
       let timerTick = null;
       let timerNotified = false;
       let toastTimeout = null;
@@ -575,6 +578,7 @@
         const app = document.getElementById("app");
         app.className = "shell";
         if (screen === "workout" && state.active) renderWorkout(app);
+        else if (screen === "preview" && preview) renderPreview(app);
         else if (screen === "history") renderHistory(app);
         else renderHome(app);
       }
@@ -597,7 +601,8 @@
             ${Object.entries(PROGRAM).map(([id, workout]) => {
               const saved = inProgress.find(session => session.workoutId === id && session.week === state.week);
               const savedSets = loggedCount(saved);
-              return `<button type="button" class="day-button ${saved ? "resume" : ""}" data-start="${id}">
+              const action = saved ? `data-start="${id}" data-start-week="${state.week}"` : `data-preview="${id}" data-preview-week="${state.week}"`;
+              return `<button type="button" class="day-button ${saved ? "resume" : ""}" ${action}>
                 <span><strong>${workout.name}${saved ? " · Resume" : ""}</strong><small>${saved ? `${savedSets} set${savedSets === 1 ? "" : "s"} saved · ` : ""}${workout.focus} · ${workout.duration}</small></span>
                 <span class="arrow" aria-hidden="true">›</span>
               </button>`;
@@ -614,8 +619,43 @@
         return "Build the baseline";
       }
 
-      function startWorkout(workoutId) {
-        if (state.active?.workoutId === workoutId && state.active.week === state.week) {
+      function openPreview(workoutId, week) {
+        preview = { workoutId, week: clamp(Number(week) || state.week, 1, 8) };
+        screen = "preview";
+        render();
+      }
+
+      function renderPreview(app) {
+        const workout = PROGRAM[preview.workoutId];
+        const week = preview.week;
+        const blocks = buildBlocks(workout, week);
+        app.innerHTML = `
+          <header class="workout-top">
+            <div class="top-row">
+              <button type="button" class="back-button" data-screen="home" aria-label="Back to home">‹</button>
+              <div style="flex:1"><p class="eyebrow" style="margin-bottom:3px">Week ${week} · Preview</p><h2 style="margin:0">${workout.name}: ${workout.focus}</h2></div>
+            </div>
+          </header>
+          ${week === 8 ? `<div class="deload"><strong>Deload:</strong> 2 sets per exercise, ~60% weight, stop 3–4 reps from failure.</div>` : ""}
+          <section class="exercise-list">
+            ${blocks.map(block => `<article class="exercise-card">
+              <div class="station">${esc(block.station)}${block.exercises.length > 1 ? " · Superset" : ""}</div>
+              ${block.exercises.map(exercise => `<div class="exercise-head">
+                <h3>${esc(exercise.name)}</h3>
+                <p class="preview-count">${setsFor(exercise, week)} × ${esc(exercise.reps)} reps</p>
+                <p class="exercise-meta">${esc(exercise.note)}</p>
+              </div>`).join("")}
+            </article>`).join("")}
+          </section>
+          <button type="button" class="finish-button" data-start="${preview.workoutId}" data-start-week="${week}">Start Workout</button>
+        `;
+      }
+
+      function startWorkout(workoutId, targetWeek = state.week) {
+        targetWeek = clamp(Number(targetWeek) || state.week, 1, 8);
+        state.week = targetWeek;
+        preview = null;
+        if (state.active?.workoutId === workoutId && state.active.week === targetWeek) {
           screen = "workout";
           render();
           return;
@@ -625,14 +665,14 @@
           state.paused = state.paused.filter(session => session.id !== state.active.id);
           state.paused.push(state.active);
         }
-        const savedIndex = state.paused.findIndex(session => session.workoutId === workoutId && session.week === state.week);
+        const savedIndex = state.paused.findIndex(session => session.workoutId === workoutId && session.week === targetWeek);
         if (savedIndex >= 0) state.active = state.paused.splice(savedIndex, 1)[0];
         else {
           state.active = {
             id: makeId(),
             date: today(),
             workoutId,
-            week: state.week,
+            week: targetWeek,
             createdAt: new Date().toISOString(),
             startedAt: null,
             entries: {},
@@ -656,7 +696,7 @@
         app.innerHTML = `
           <header class="workout-top">
             <div class="top-row">
-              <button type="button" class="back-button" data-screen="home" aria-label="Back to home">‹</button>
+              <button type="button" class="back-button" data-pause aria-label="Pause and exit workout">‹</button>
               <div style="flex:1"><p class="eyebrow" style="margin-bottom:3px">Week ${session.week} · ${complete}/${schedule.length} sets</p><h2 style="margin:0">${workout.name}: ${workout.focus}</h2></div>
               <span id="elapsed" class="elapsed">${session.startedAt ? formatElapsed(Date.now() - new Date(session.startedAt).getTime()) : "0:00"}</span>
             </div>
@@ -667,6 +707,7 @@
             ${blocks.map((block, blockIndex) => renderBlock(block, blockIndex, session)).join("")}
           </section>
           <button type="button" class="finish-button" data-finish>Finish Workout</button>
+          <button type="button" class="pause-button" data-pause>Pause &amp; Exit</button>
           <button type="button" class="restart-button" data-restart>Start workout over</button>
           ${session.timer ? renderTimer(session.timer) : ""}
         `;
@@ -813,6 +854,19 @@
         showToast("Workout saved");
       }
 
+      function pauseWorkout() {
+        const session = state.active;
+        if (!session) return;
+        state.paused ||= [];
+        state.paused = state.paused.filter(item => item.id !== session.id);
+        state.paused.push(session);
+        state.active = null;
+        saveState();
+        screen = "home";
+        render();
+        showToast("Workout paused");
+      }
+
       function restartWorkout() {
         const session = state.active;
         if (!session) return;
@@ -882,10 +936,12 @@
           state.week = clamp(state.week + Number(target.dataset.week), 1, 8);
           saveState();
           render();
-        } else if (target.dataset.start) startWorkout(target.dataset.start);
+        } else if (target.dataset.preview) openPreview(target.dataset.preview, target.dataset.previewWeek);
+        else if (target.dataset.start) startWorkout(target.dataset.start, target.dataset.startWeek);
         else if (target.dataset.screen) { screen = target.dataset.screen; render(); }
         else if (target.dataset.log) toggleSet(target.dataset.log, target);
         else if (target.hasAttribute("data-finish")) finishWorkout();
+        else if (target.hasAttribute("data-pause")) pauseWorkout();
         else if (target.hasAttribute("data-restart")) restartWorkout();
         else if (target.hasAttribute("data-add-time") && state.active?.timer) {
           state.active.timer.endAt = Math.max(Date.now(), state.active.timer.endAt) + 30000;

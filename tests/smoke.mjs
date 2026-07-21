@@ -78,7 +78,14 @@ assert.match(env.app.innerHTML, /Vanity Sprint/);
 for (let index = 0; index < 3; index += 1) clickButton(env, { week: "1" });
 assert.match(env.app.innerHTML, /Week 4 of 8/);
 
-clickButton(env, { start: "monday" });
+const beforePreview = storage.get("vanity-sprint-v1");
+clickButton(env, { preview: "monday", previewWeek: "4" });
+assert.match(env.app.innerHTML, /Week 4 · Preview/);
+assert.match(env.app.innerHTML, /Incline DB curl/);
+assert.match(env.app.innerHTML, /4 × 10 reps/);
+assert.equal(storage.get("vanity-sprint-v1"), beforePreview, "preview does not create an active workout");
+
+clickButton(env, { start: "monday", startWeek: "4" });
 assert.match(env.app.innerHTML, /Monday: Chest \+ Arms \+ Delts/);
 assert.equal((env.app.innerHTML.match(/data-row="mon-incline-curl:/g) || []).length, 4);
 assert.equal((env.app.innerHTML.match(/data-row="mon-overhead-extension:/g) || []).length, 4);
@@ -105,19 +112,32 @@ assert.equal(persisted.active.entries["mon-incline-press:1"].reps, "10");
 assert.equal(persisted.active.timer.duration, 150);
 assert.match(persisted.active.timer.nextLabel, /set 2/);
 
-clickButton(env, { screen: "home" });
-assert.doesNotMatch(env.app.innerHTML, /data-start="tuesday" disabled/);
+clickButton(env, {}, ["data-pause"]);
+persisted = JSON.parse(storage.get("vanity-sprint-v1"));
+assert.equal(persisted.active, null);
+assert.equal(persisted.paused[0].workoutId, "monday");
+assert.equal(persisted.paused[0].entries["mon-incline-press:1"].weight, "40");
+assert.match(env.app.innerHTML, /Monday · Resume/);
+assert.match(env.app.innerHTML, /data-preview="tuesday"/);
+
+clickButton(env, { start: "monday", startWeek: "4" });
+persisted = JSON.parse(storage.get("vanity-sprint-v1"));
+assert.equal(persisted.active.workoutId, "monday");
+assert.equal(persisted.active.entries["mon-incline-press:1"].weight, "40");
+
+clickButton(env, {}, ["data-pause"]);
 clickButton(env, { week: "1" });
-clickButton(env, { start: "thursday" });
+clickButton(env, { preview: "thursday", previewWeek: "5" });
+clickButton(env, { start: "thursday", startWeek: "5" });
 persisted = JSON.parse(storage.get("vanity-sprint-v1"));
 assert.equal(persisted.active.workoutId, "thursday");
 assert.equal(persisted.active.week, 5);
 assert.equal(persisted.paused[0].workoutId, "monday");
 assert.equal(persisted.paused[0].week, 4);
 
-clickButton(env, { screen: "home" });
+clickButton(env, {}, ["data-pause"]);
 clickButton(env, { week: "-1" });
-clickButton(env, { start: "monday" });
+clickButton(env, { start: "monday", startWeek: "4" });
 persisted = JSON.parse(storage.get("vanity-sprint-v1"));
 assert.equal(persisted.active.workoutId, "monday");
 assert.equal(persisted.active.entries["mon-incline-press:1"].weight, "40");
@@ -164,12 +184,17 @@ assert.match(env.app.innerHTML, /History/);
 assert.match(env.app.innerHTML, /40 lb × 10/);
 
 clickButton(env, { screen: "home" });
-clickButton(env, { start: "monday" });
+clickButton(env, { preview: "monday", previewWeek: "4" });
+clickButton(env, { start: "monday", startWeek: "4" });
 assert.match(env.app.innerHTML, /data-row="mon-incline-press:1"[\s\S]*?value="40"/);
 
 const deloadStorage = new Map([["vanity-sprint-v1", JSON.stringify({ week: 8, active: null, sessions: [] })]]);
 const deload = boot(deloadStorage);
-clickButton(deload, { start: "tuesday" });
+clickButton(deload, { preview: "tuesday", previewWeek: "8" });
+assert.match(deload.app.innerHTML, /Deload:/);
+assert.match(deload.app.innerHTML, /2 × 5–8 reps/);
+assert.doesNotMatch(deload.app.innerHTML, /data-row=/);
+clickButton(deload, { start: "tuesday", startWeek: "8" });
 assert.match(deload.app.innerHTML, /Deload:/);
 assert.equal((deload.app.innerHTML.match(/data-row="tue-leg-press-calf:/g) || []).length, 2);
 assert.doesNotMatch(deload.app.innerHTML, /data-row="tue-hack-squat:3"/);
