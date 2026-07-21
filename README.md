@@ -4,7 +4,7 @@ A phone-first, offline workout tracker for Scott's fixed 8-week Vanity Muscle Sp
 
 ## Compare the builds
 
-- [Codex version](https://ssundvor.github.io/workout/)
+- [Codex version](https://ssundvor.github.io/workout/codex/)
 - [Claude version](https://ssundvor.github.io/workout/claude/)
 
 ## What it does
