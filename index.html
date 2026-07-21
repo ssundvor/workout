@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e0f13">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Sprint Tracker</title>
+<style>
+  :root {
+    --bg: #0e0f13;
+    --card: #171921;
+    --card2: #1e2130;
+    --text: #eef0f5;
+    --dim: #8b91a5;
+    --accent: #4ade80;
+    --accent-dark: #14532d;
+    --line: #262a3a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { min-height: 100vh; padding-bottom: env(safe-area-inset-bottom); }
+  #app { max-width: 560px; margin: 0 auto; padding: 16px 14px 120px; }
+  button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+  input { font: inherit; color: inherit; }
+
+  /* ---------- Home ---------- */
+  .home-title { font-size: 22px; font-weight: 700; margin: 8px 0 2px; }
+  .home-sub { color: var(--dim); font-size: 14px; margin-bottom: 20px; }
+  .week-row { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .week-label { font-size: 17px; font-weight: 600; flex: 1; }
+  .week-btn { width: 48px; height: 48px; border-radius: 12px; background: var(--card); font-size: 24px; font-weight: 700; color: var(--text); }
+  .week-btn:active { background: var(--card2); }
+  .deload-tag { color: var(--accent); font-size: 13px; font-weight: 600; }
+  .workout-btn { display: block; width: 100%; text-align: left; background: var(--card); border-radius: 16px; padding: 18px 16px; margin-bottom: 12px; }
+  .workout-btn:active { background: var(--card2); }
+  .workout-btn .wname { font-size: 19px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .workout-btn .wsub { color: var(--dim); font-size: 13px; margin-top: 3px; }
+  .badge { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 99px; background: var(--accent-dark); color: var(--accent); }
+  .history-link { display: block; width: 100%; text-align: center; color: var(--dim); font-size: 15px; padding: 16px; margin-top: 8px; }
+
+  /* ---------- Workout ---------- */
+  .topbar { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .back-btn { color: var(--dim); font-size: 15px; padding: 8px 8px 8px 0; }
+  .wk-title { font-size: 20px; font-weight: 700; flex: 1; }
+  .wk-meta { color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; }
+  .banner { background: var(--accent-dark); color: var(--accent); border-radius: 12px; padding: 10px 14px; font-size: 14px; font-weight: 600; margin: 10px 0; }
+  .card { background: var(--card); border-radius: 16px; padding: 14px; margin: 12px 0; }
+  .ex-head { margin-bottom: 4px; }
+  .ex-name { font-size: 17px; font-weight: 700; }
+  .ex-detail { color: var(--dim); font-size: 13px; margin-top: 2px; }
+  .last-line { color: var(--dim); font-size: 13px; margin: 4px 0 8px; padding: 4px 0; }
+  .last-line b { color: var(--text); font-weight: 600; }
+  .trend { color: var(--dim); font-size: 13px; line-height: 1.6; padding: 6px 0 8px; border-top: 1px solid var(--line); }
+  .set-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+  .set-label { flex: 1; font-size: 14px; color: var(--dim); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .set-row input { width: 74px; height: 48px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; text-align: center; font-size: 17px; }
+  .set-row input:focus { outline: none; border-color: var(--accent); }
+  .check-btn { width: 52px; height: 48px; border-radius: 10px; background: var(--card2); color: var(--dim); font-size: 20px; font-weight: 700; flex-shrink: 0; }
+  .set-row.done { opacity: 0.55; }
+  .set-row.done .check-btn { background: var(--accent-dark); color: var(--accent); }
+  .set-row.done input { border-color: transparent; }
+  .finish-btn { display: block; width: 100%; padding: 16px; margin-top: 18px; border-radius: 14px; background: var(--accent); color: #06220f; font-size: 17px; font-weight: 700; }
+
+  /* ---------- Timer bar ---------- */
+  #timerbar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card2); border-top: 2px solid var(--accent); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); display: none; }
+  #timerbar.on { display: block; }
+  #timerbar.zero { animation: flash 0.6s ease 3; }
+  @keyframes flash { 50% { background: var(--accent-dark); } }
+  .tb-inner { max-width: 560px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .tb-time { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 96px; }
+  .tb-time.go { color: var(--accent); }
+  .tb-next { flex: 1; color: var(--dim); font-size: 13px; line-height: 1.35; min-width: 0; }
+  .tb-btn { height: 48px; padding: 0 14px; border-radius: 10px; background: var(--card); font-size: 15px; font-weight: 600; flex-shrink: 0; }
+
+  /* ---------- History ---------- */
+  .h-session { background: var(--card); border-radius: 14px; padding: 14px; margin: 10px 0; }
+  .h-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .h-date { font-weight: 700; font-size: 15px; }
+  .h-meta { color: var(--dim); font-size: 13px; }
+  .h-detail { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 14px; line-height: 1.7; }
+  .h-detail .hx { color: var(--dim); }
+  .empty { color: var(--dim); text-align: center; padding: 40px 0; font-size: 15px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="timerbar">
+  <div class="tb-inner">
+    <div class="tb-time" id="tb-time">0:00</div>
+    <div class="tb-next" id="tb-next"></div>
+    <button class="tb-btn" id="tb-add">+30 s</button>
+    <button class="tb-btn" id="tb-skip">Skip</button>
+  </div>
+</div>
+<script>
+'use strict';
+
+/* ================= Program (hardcoded) ================= */
+/* rest: 150 = heavy compound, 60 = superset pairing, 75 = isolation straight sets */
+/* addSet: gets +1 set in weeks 4-7. Week 8 = deload, 2 sets everything. */
+const PROGRAM = [
+  { id: 'mon', name: 'Monday', sub: 'Chest + Arms + Delts · ~50 min', exercises: [
+    { id: 'mon1',  name: 'Incline DB press', short: 'Press', sets: 4, reps: '8–10', rest: 150, note: 'Chest primary' },
+    { id: 'mon2a', name: 'Incline DB curl', short: 'Curl', sets: 3, reps: '10', rest: 60, ss: 'A', note: 'Elbows pinned back, deep stretch', addSet: true },
+    { id: 'mon2b', name: 'Seated overhead DB extension', short: 'Extension', sets: 3, reps: '10–12', rest: 60, ss: 'A', note: 'Stretch at bottom', addSet: true },
+    { id: 'mon3',  name: 'Weighted dip', short: 'Dip', sets: 3, reps: '8–10', rest: 150, note: 'Chest + triceps' },
+    { id: 'mon4a', name: 'DB lateral raise', short: 'Lateral', sets: 3, reps: '12–15', rest: 60, ss: 'B', note: 'Strict' },
+    { id: 'mon4b', name: 'Standing DB calf raise', short: 'Calf raise', sets: 3, reps: '10–12', rest: 60, ss: 'B', note: '2-sec pause deep in the stretch', addSet: true },
+  ]},
+  { id: 'tue', name: 'Tuesday', sub: 'Lower + Calves + Abs · ~45 min', exercises: [
+    { id: 'tue1',  name: 'Hack squat', short: 'Squat', sets: 3, reps: '5–8', rest: 150, note: 'Or leg press / barbell squat. Maintenance' },
+    { id: 'tue2',  name: 'Romanian deadlift', short: 'RDL', sets: 2, reps: '8', rest: 150, note: 'Maintenance' },
+    { id: 'tue3',  name: 'Leg press calf raise', short: 'LP calf', sets: 4, reps: '10–12', rest: 150, note: '2–3 sec pause in stretch; partials on last set', addSet: true },
+    { id: 'tue4',  name: 'Seated calf raise', short: 'Seated calf', sets: 3, reps: '15–20', rest: 75, note: 'Soleus' },
+    { id: 'tue5a', name: 'Cable crunch', short: 'Crunch', sets: 3, reps: '10–12', rest: 60, ss: 'A', note: 'Load it, progress it' },
+    { id: 'tue5b', name: 'Hanging leg raise', short: 'Leg raise', sets: 3, reps: '12', rest: 60, ss: 'A', note: 'Or standing cable oblique' },
+  ]},
+  { id: 'thu', name: 'Thursday', sub: 'Pull + Chest #2 + Arms + Delts · ~50 min', exercises: [
+    { id: 'thu1a', name: 'Chest-supported DB row', short: 'Row', sets: 3, reps: '8–10', rest: 60, ss: 'A', note: 'Lie chest-down on incline' },
+    { id: 'thu1b', name: 'Flat / low-incline DB press', short: 'Press', sets: 3, reps: '8–10', rest: 60, ss: 'A', note: 'Flip over, same bench' },
+    { id: 'thu2',  name: 'Weighted pull-up', short: 'Pull-up', sets: 3, reps: '6–8', rest: 150, note: 'Lat pulldown substitutes fine' },
+    { id: 'thu3a', name: 'Cable curl', short: 'Curl', sets: 3, reps: '10–12', rest: 60, ss: 'B', note: 'Elbow slightly behind torso', addSet: true },
+    { id: 'thu3b', name: 'Overhead cable extension', short: 'Extension', sets: 3, reps: '10–12', rest: 60, ss: 'B', note: 'Pulley high, rope attachment', addSet: true },
+    { id: 'thu4a', name: 'Cable lateral raise', short: 'Lateral', sets: 3, reps: '15–20', rest: 60, ss: 'C', note: 'DB version fine' },
+    { id: 'thu4b', name: 'Rear delt fly', short: 'Rear delt', sets: 2, reps: '15–20', rest: 60, ss: 'C', note: 'Cable or DB' },
+    { id: 'thu5',  name: 'Ab wheel', short: 'Ab wheel', sets: 2, reps: '10', rest: 75, note: '' },
+  ]},
+  { id: 'bonus', name: 'Bonus', sub: 'Pump day, floats Fri–Sun · ~30 min · skip guilt-free', exercises: [
+    { id: 'bon1a', name: 'Cable fly', short: 'Fly', sets: 3, reps: '15–20', rest: 60, ss: 'A', note: '' },
+    { id: 'bon1b', name: 'Cable curl', short: 'Curl', sets: 3, reps: '15–20', rest: 60, ss: 'A', note: '' },
+    { id: 'bon2a', name: 'Overhead rope extension', short: 'Extension', sets: 3, reps: '15–20', rest: 60, ss: 'B', note: '' },
+    { id: 'bon2b', name: 'Cable lateral raise', short: 'Lateral', sets: 3, reps: '15–20', rest: 60, ss: 'B', note: '' },
+    { id: 'bon3',  name: 'Standing DB calf raise', short: 'Calf raise', sets: 3, reps: '15', rest: 75, note: 'Paused' },
+    { id: 'bon4',  name: 'Cable crunch', short: 'Crunch', sets: 2, reps: '15', rest: 75, note: '' },
+  ]},
+];
+
+function getWorkout(id) { return PROGRAM.find(w => w.id === id); }
+function getExercise(exId) {
+  for (const w of PROGRAM) for (const ex of w.exercises) if (ex.id === exId) return ex;
+  return null;
+}
+function setsFor(ex, week) {
+  if (week === 8) return 2;
+  if (ex.addSet && week >= 4 && week <= 7) return ex.sets + 1;
+  return ex.sets;
+}
+
+/* ================= State (localStorage, write-through) ================= */
+const KEY = 'sprint-tracker-v1';
+let state = load();
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && Array.isArray(s.sessions)) return s;
+  } catch (e) {}
+  return { week: 1, sessions: [], timer: null };
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function sessionForToday(workoutId) {
+  return state.sessions.find(s => s.workoutId === workoutId && s.date === todayStr());
+}
+function getSession(id) { return state.sessions.find(s => s.id === id); }
+
+/* Most recent prior session (before `beforeSession`) containing sets for exId */
+function lastSetsFor(exId, beforeSessionId, limit) {
+  const out = [];
+  const sorted = state.sessions.slice().sort((a, b) => b.createdAt - a.createdAt);
+  for (const s of sorted) {
+    if (s.id === beforeSessionId) continue;
+    const entries = Object.keys(s.sets)
+      .filter(k => k.startsWith(exId + '|'))
+      .map(k => ({ n: parseInt(k.split('|')[1], 10), ...s.sets[k] }))
+      .sort((a, b) => a.n - b.n);
+    if (entries.length) {
+      out.push({ session: s, entries });
+      if (out.length >= (limit || 1)) break;
+    }
+  }
+  return out;
+}
+function fmtEntries(entries) {
+  const ws = entries.map(e => e.w);
+  const sameW = ws.every(w => w === ws[0]);
+  if (sameW && ws[0] != null) return ws[0] + ' lb × ' + entries.map(e => e.r == null ? '—' : e.r).join(', ');
+  return entries.map(e => (e.w == null ? '—' : e.w) + '×' + (e.r == null ? '—' : e.r)).join(', ');
+}
+function fmtDate(ts) {
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/* ================= Superset-aware row ordering ================= */
+/* Blocks = consecutive exercises sharing a superset group, else single. */
+function blocksFor(workout) {
+  const blocks = [];
+  for (const ex of workout.exercises) {
+    const last = blocks[blocks.length - 1];
+    if (ex.ss && last && last.ss === ex.ss) last.exercises.push(ex);
+    else blocks.push({ ss: ex.ss || null, exercises: [ex] });
+  }
+  return blocks;
+}
+/* Alternating rows: A1 s1, A2 s1, A1 s2, A2 s2 ... handles unequal set counts */
+function rowsFor(block, week) {
+  const rows = [];
+  const counts = block.exercises.map(ex => setsFor(ex, week));
+  const max = Math.max(...counts);
+  for (let n = 1; n <= max; n++)
+    block.exercises.forEach((ex, i) => { if (n <= counts[i]) rows.push({ ex, n }); });
+  return rows;
+}
+function allRows(workout, week) {
+  const rows = [];
+  for (const b of blocksFor(workout)) rows.push(...rowsFor(b, week));
+  return rows;
+}
+
+/* ================= Rendering ================= */
+const app = document.getElementById('app');
+let screen = { name: 'home' };
+let openTrends = {};   // exId -> bool, per render session
+let openHistory = {};  // sessionId -> bool
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function render() {
+  if (screen.name === 'home') renderHome();
+  else if (screen.name === 'workout') renderWorkout();
+  else if (screen.name === 'history') renderHistory();
+  window.scrollTo(0, screen.scrollY || 0);
+  screen.scrollY = 0;
+}
+
+/* ---------- Home ---------- */
+function renderHome() {
+  let html = '<div class="home-title">Sprint Tracker</div>';
+  html += '<div class="home-sub">Vanity Muscle Sprint · 8 weeks</div>';
+  html += '<div class="week-row">' +
+    '<div class="week-label">Week ' + state.week + ' of 8' +
+    (state.week === 8 ? ' <span class="deload-tag">deload</span>' : '') + '</div>' +
+    '<button class="week-btn" data-act="week" data-d="-1">−</button>' +
+    '<button class="week-btn" data-act="week" data-d="1">+</button></div>';
+  for (const w of PROGRAM) {
+    const s = sessionForToday(w.id);
+    const badge = s ? (s.finishedAt ? '<span class="badge">Done</span>' : '<span class="badge">Resume</span>') : '';
+    html += '<button class="workout-btn" data-act="start" data-w="' + w.id + '">' +
+      '<div class="wname">' + esc(w.name) + ' ' + badge + '</div>' +
+      '<div class="wsub">' + esc(w.sub) + '</div></button>';
+  }
+  html += '<button class="history-link" data-act="history">History</button>';
+  app.innerHTML = html;
+}
+
+/* ---------- Workout ---------- */
+function renderWorkout() {
+  const session = getSession(screen.sessionId);
+  if (!session) { screen = { name: 'home' }; return render(); }
+  const workout = getWorkout(session.workoutId);
+  const week = session.week;
+
+  let html = '<div class="topbar"><button class="back-btn" data-act="home">‹ Home</button>' +
+    '<div class="wk-title">' + esc(workout.name) + '</div>' +
+    '<div class="wk-meta">Wk ' + week + ' · <span id="elapsed">' + elapsedStr(session) + '</span></div></div>';
+  if (week === 8) html += '<div class="banner">Deload: ~60% weight, stop 3–4 from failure</div>';
+
+  for (const block of blocksFor(workout)) {
+    html += '<div class="card">';
+    for (const ex of block.exercises) {
+      const n = setsFor(ex, week);
+      html += '<div class="ex-head"><div class="ex-name">' + esc(ex.name) + '</div>' +
+        '<div class="ex-detail">' + n + ' × ' + esc(ex.reps) +
+        (ex.note ? ' · ' + esc(ex.note) : '') + '</div></div>';
+      const hist = lastSetsFor(ex.id, session.id, 5);
+      if (hist.length) {
+        html += '<div class="last-line" data-act="trend" data-ex="' + ex.id + '">Last: <b>' + esc(fmtEntries(hist[0].entries)) + '</b></div>';
+        if (openTrends[ex.id]) {
+          html += '<div class="trend">' + hist.map(h =>
+            esc(fmtDate(h.session.createdAt)) + ' — ' + esc(fmtEntries(h.entries))).join('<br>') + '</div>';
+        }
+      } else {
+        html += '<div class="last-line">Last: first time — set a baseline</div>';
+      }
+    }
+    const multi = block.exercises.length > 1;
+    for (const row of rowsFor(block, week)) {
+      const key = row.ex.id + '|' + row.n;
+      const entry = session.sets[key];
+      const draft = session.drafts[key] || {};
+      const prev = lastSetsFor(row.ex.id, session.id, 1)[0];
+      let pw = '', pr = '';
+      if (prev) {
+        const src = prev.entries[Math.min(row.n, prev.entries.length) - 1];
+        if (src) { pw = src.w == null ? '' : src.w; pr = src.r == null ? '' : src.r; }
+      }
+      const w = entry ? (entry.w == null ? '' : entry.w) : (draft.w !== undefined ? draft.w : pw);
+      const r = entry ? (entry.r == null ? '' : entry.r) : (draft.r !== undefined ? draft.r : pr);
+      const label = multi ? esc(row.ex.short) + ' set ' + row.n : 'Set ' + row.n;
+      html += '<div class="set-row' + (entry ? ' done' : '') + '" data-key="' + key + '">' +
+        '<div class="set-label">' + label + '</div>' +
+        '<input type="text" inputmode="decimal" placeholder="lb" value="' + esc(w) + '" data-f="w"' + (entry ? ' readonly' : '') + '>' +
+        '<input type="text" inputmode="numeric" placeholder="reps" value="' + esc(r) + '" data-f="r"' + (entry ? ' readonly' : '') + '>' +
+        '<button class="check-btn" data-act="log" data-key="' + key + '">✓</button></div>';
+    }
+    html += '</div>';
+  }
+  html += '<button class="finish-btn" data-act="finish">Finish Workout</button>';
+  app.innerHTML = html;
+}
+
+function elapsedStr(session) {
+  if (!session.startedAt) return '0:00';
+  const s = Math.max(0, Math.floor((Date.now() - session.startedAt) / 1000));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+/* ---------- History ---------- */
+function renderHistory() {
+  let html = '<div class="topbar"><button class="back-btn" data-act="home">‹ Home</button>' +
+    '<div class="wk-title">History</div></div>';
+  const sorted = state.sessions.slice().sort((a, b) => b.createdAt - a.createdAt);
+  if (!sorted.length) html += '<div class="empty">No sessions yet</div>';
+  for (const s of sorted) {
+    const w = getWorkout(s.workoutId);
+    const count = Object.keys(s.sets).length;
+    html += '<div class="h-session" data-act="expand" data-s="' + s.id + '">' +
+      '<div class="h-head"><div class="h-date">' + esc(fmtDate(s.createdAt)) + ' · ' + esc(w.name) + '</div>' +
+      '<div class="h-meta">wk ' + s.week + ' · ' + count + ' sets' + (s.finishedAt ? '' : ' · unfinished') + '</div></div>';
+    if (openHistory[s.id]) {
+      html += '<div class="h-detail">';
+      for (const ex of w.exercises) {
+        const entries = Object.keys(s.sets)
+          .filter(k => k.startsWith(ex.id + '|'))
+          .map(k => ({ n: parseInt(k.split('|')[1], 10), ...s.sets[k] }))
+          .sort((a, b) => a.n - b.n);
+        if (entries.length) html += '<div><span class="hx">' + esc(ex.name) + ':</span> ' + esc(fmtEntries(entries)) + '</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  app.innerHTML = html;
+}
+
+/* ================= Actions ================= */
+app.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]');
+  if (!t) return;
+  const act = t.dataset.act;
+
+  if (act === 'week') {
+    state.week = Math.min(8, Math.max(1, state.week + parseInt(t.dataset.d, 10)));
+    save(); render();
+  } else if (act === 'start') {
+    startWorkout(t.dataset.w);
+  } else if (act === 'history') {
+    openHistory = {}; screen = { name: 'history' }; render();
+  } else if (act === 'home') {
+    screen = { name: 'home' }; render();
+  } else if (act === 'trend') {
+    openTrends[t.dataset.ex] = !openTrends[t.dataset.ex];
+    screen.scrollY = window.scrollY; render();
+  } else if (act === 'expand') {
+    openHistory[t.dataset.s] = !openHistory[t.dataset.s];
+    screen.scrollY = window.scrollY; render();
+  } else if (act === 'log') {
+    toggleSet(t.dataset.key);
+  } else if (act === 'finish') {
+    finishWorkout();
+  }
+});
+
+/* Persist typed values on every keystroke (write-through drafts) */
+app.addEventListener('input', e => {
+  const input = e.target;
+  const row = input.closest('.set-row');
+  if (!row || screen.name !== 'workout') return;
+  const session = getSession(screen.sessionId);
+  if (!session || session.sets[row.dataset.key]) return;
+  const d = session.drafts[row.dataset.key] || (session.drafts[row.dataset.key] = {});
+  d[input.dataset.f] = input.value;
+  save();
+});
+
+function startWorkout(workoutId) {
+  let session = sessionForToday(workoutId);
+  if (!session) {
+    session = {
+      id: 's' + Date.now(),
+      date: todayStr(),
+      workoutId,
+      week: state.week,
+      createdAt: Date.now(),
+      startedAt: null,
+      finishedAt: null,
+      sets: {},
+      drafts: {},
+    };
+    state.sessions.push(session);
+    save();
+  }
+  openTrends = {};
+  screen = { name: 'workout', sessionId: session.id };
+  render();
+}
+
+function toggleSet(key) {
+  const session = getSession(screen.sessionId);
+  if (!session) return;
+  const [exId, nStr] = key.split('|');
+  const ex = getExercise(exId);
+
+  if (session.sets[key]) {
+    /* Un-log: make the row editable again */
+    delete session.sets[key];
+    save();
+    screen.scrollY = window.scrollY; render();
+    return;
+  }
+  const row = app.querySelector('.set-row[data-key="' + CSS.escape(key) + '"]');
+  const w = parseFloat(row.querySelector('[data-f="w"]').value);
+  const r = parseInt(row.querySelector('[data-f="r"]').value, 10);
+  session.sets[key] = { w: isNaN(w) ? null : w, r: isNaN(r) ? null : r, ts: Date.now() };
+  delete session.drafts[key];
+  if (!session.startedAt) session.startedAt = Date.now();
+  startTimer(ex.rest, nextUpLabel(session, key));
+  save();
+  screen.scrollY = window.scrollY; render();
+}
+
+function nextUpLabel(session, justLoggedKey) {
+  const workout = getWorkout(session.workoutId);
+  const rows = allRows(workout, session.week);
+  const start = rows.findIndex(row => row.ex.id + '|' + row.n === justLoggedKey);
+  /* Scan forward from the set just logged, wrapping to catch earlier skipped sets */
+  for (let i = 1; i <= rows.length; i++) {
+    const row = rows[(start + i) % rows.length];
+    if (!session.sets[row.ex.id + '|' + row.n])
+      return 'Next: ' + row.ex.name + ' · set ' + row.n;
+  }
+  return 'Next: Finish Workout — all sets logged';
+}
+
+function finishWorkout() {
+  const session = getSession(screen.sessionId);
+  if (!session) return;
+  const workout = getWorkout(session.workoutId);
+  const planned = allRows(workout, session.week).length;
+  const logged = Object.keys(session.sets).length;
+  if (logged < planned && !confirm((planned - logged) + ' sets not logged. Finish anyway?')) return;
+  session.finishedAt = Date.now();
+  clearTimer();
+  save();
+  screen = { name: 'home' };
+  render();
+}
+
+/* ================= Rest timer ================= */
+const tbar = document.getElementById('timerbar');
+const tbTime = document.getElementById('tb-time');
+const tbNext = document.getElementById('tb-next');
+let goUntil = 0;
+
+function startTimer(seconds, nextLabel) {
+  state.timer = { endsAt: Date.now() + seconds * 1000, next: nextLabel, fired: false };
+  goUntil = 0;
+  save();
+  tickTimer();
+}
+function clearTimer() {
+  state.timer = null;
+  save();
+  tbar.classList.remove('on', 'zero');
+}
+document.getElementById('tb-add').addEventListener('click', () => {
+  if (!state.timer) return;
+  state.timer.endsAt = Math.max(Date.now(), state.timer.endsAt) + 30000;
+  state.timer.fired = false;
+  save();
+  tickTimer();
+});
+document.getElementById('tb-skip').addEventListener('click', clearTimer);
+
+function tickTimer() {
+  if (!state.timer) {
+    if (goUntil && Date.now() < goUntil) return; /* keep "Go" visible */
+    tbar.classList.remove('on', 'zero');
+    return;
+  }
+  const remaining = Math.ceil((state.timer.endsAt - Date.now()) / 1000);
+  tbar.classList.add('on');
+  tbNext.textContent = state.timer.next;
+  if (remaining > 0) {
+    tbTime.classList.remove('go');
+    tbar.classList.remove('zero');
+    tbTime.textContent = Math.floor(remaining / 60) + ':' + String(remaining % 60).padStart(2, '0');
+  } else {
+    tbTime.textContent = 'Go';
+    tbTime.classList.add('go');
+    if (!state.timer.fired) {
+      state.timer.fired = true;
+      save();
+      tbar.classList.add('zero');
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      goUntil = Date.now() + 5000;
+      setTimeout(() => { if (state.timer && state.timer.fired) clearTimer(); }, 5000);
+    }
+  }
+}
+
+setInterval(() => {
+  tickTimer();
+  if (screen.name === 'workout') {
+    const el = document.getElementById('elapsed');
+    const session = getSession(screen.sessionId);
+    if (el && session) el.textContent = elapsedStr(session);
+  }
+}, 500);
+
+/* Recompute timer from timestamp when returning to the tab */
+document.addEventListener('visibilitychange', () => { if (!document.hidden) tickTimer(); });
+
+/* ================= Boot ================= */
+render();
+tickTimer();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
