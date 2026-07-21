@@ -2,6 +2,11 @@
 
 A phone-first, offline workout tracker for Scott's fixed 8-week Vanity Muscle Sprint.
 
+## Compare the builds
+
+- [Codex version](https://ssundvor.github.io/workout/)
+- [Claude version](https://ssundvor.github.io/workout/claude/)
+
 ## What it does
 
 - Tracks Monday, Tuesday, Thursday, and bonus workouts
